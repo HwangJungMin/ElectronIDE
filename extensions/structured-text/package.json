@@ -1,0 +1,6 @@
+{
+  "name": "@ext/structured-text",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.ts"
+}
