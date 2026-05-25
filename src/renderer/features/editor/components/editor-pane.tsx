@@ -22,6 +22,7 @@ export function EditorPane() {
   const currentPath = useEditorStore((s) => s.currentPath);
   const content = useEditorStore((s) => s.content);
   const isLoading = useEditorStore((s) => s.isLoading);
+  const error = useEditorStore((s) => s.error);
 
   // 'editor.open' 핸들러 등록 → 누구든 commandRegistry.execute('editor.open', path)로 호출 가능
   // 언마운트 시 자동 해제 (return unregister)
@@ -68,7 +69,14 @@ export function EditorPane() {
         </button>
       </header>
       <div className="flex-1 overflow-auto p-3">
-        <pre className="text-sm text-neutral-200 whitespace-pre font-mono">{content}</pre>
+        {error ? (
+          <pre className="text-sm text-red-400 whitespace-pre-wrap font-mono">
+            파일을 읽지 못했습니다.{'\n'}
+            {error}
+          </pre>
+        ) : (
+          <pre className="text-sm text-neutral-200 whitespace-pre font-mono">{content}</pre>
+        )}
       </div>
     </div>
   );

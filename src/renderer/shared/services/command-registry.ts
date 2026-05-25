@@ -10,6 +10,7 @@
 export interface CommandMap {
   'editor.open': { args: [path: string]; return: Promise<void> };
   'editor.close': { args: []; return: void };
+  'workspace.openFolder': { args: []; return: Promise<void> };
 }
 
 type CommandName = keyof CommandMap;
