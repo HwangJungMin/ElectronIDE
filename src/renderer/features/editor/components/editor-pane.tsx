@@ -1,82 +1,71 @@
-// Command + Event 패턴 (이전 직접 구독 패턴에서 리팩터됨):
+// EditorPane: 살림(렌더)만 담당.
 //
-//   [이전] editor가 explorer.selectedPath를 useEffect로 구독
-//          → editor가 explorer를 알아야 함 (단방향이지만 결합)
+// 학습 포인트 — Monaco를 React 안에 박제하는 방식:
+//   - <div ref={containerRef}> 빈 div 하나만 두고, Monaco가 그 안을 점유.
+//   - "콘텐츠"는 자식 JSX로 그리지 않음 (Monaco의 영역).
+//   - 헤더/에러 같은 React 영역은 정상적으로 React가 그림.
 //
-//   [현재] editor가 'editor.open' 커맨드 핸들러를 등록
-//          호출자가 누구든 동일 진입점으로 파일 오픈 요청
-//          작업 완료 후 'file:opened' 이벤트 발행 → 관심 있는 누구든 청취
+//   value/path/language는 useMonacoEditor에 단방향으로 흘려보내기만 하고,
+//   Monaco는 내부적으로 model을 만들어 표시한다.
 //
-// Command: 명령(능동) — 1 caller → 1 handler, 반환값 있음
-// Event:   알림(수동) — 1 publisher → N listeners, 반환값 없음
+//   onChange는 오늘은 비활성 (readOnly: true). 다음 세션에서
+//   dirty 추적 + Ctrl+S 저장을 붙일 때 활성화.
 
-import { useEffect } from 'react';
+import { useMemo } from 'react';
 import { useEditorStore } from '../store/editor.store';
+import { useEditorCommands } from '../hooks/use-editor-commands';
+import { useMonacoEditor } from '../hooks/use-monaco-editor';
+import { getLanguageFromPath } from '../utils/get-language';
 import { commandRegistry } from '@shared/services/command-registry';
-import { eventBus } from '@shared/services/event-bus';
 
 export function EditorPane() {
-  const openFile = useEditorStore((s) => s.openFile);
-  const close = useEditorStore((s) => s.close);
+  useEditorCommands();
 
   const currentPath = useEditorStore((s) => s.currentPath);
   const content = useEditorStore((s) => s.content);
   const isLoading = useEditorStore((s) => s.isLoading);
   const error = useEditorStore((s) => s.error);
 
-  // 'editor.open' 핸들러 등록 → 누구든 commandRegistry.execute('editor.open', path)로 호출 가능
-  // 언마운트 시 자동 해제 (return unregister)
-  useEffect(() => {
-    const unregister = commandRegistry.register('editor.open', async (path) => {
-      const opened = await openFile(path);
-      if (opened) {
-        // 실제로 열린 경우에만 이벤트 발행 → 거짓 알림 방지
-        eventBus.emit('file:opened', { path });
-      }
-    });
-    return unregister;
-  }, [openFile]);
+  // path가 바뀔 때만 language 재계산 (모델 교체 트리거에 들어감).
+  const language = useMemo(
+    () => (currentPath ? getLanguageFromPath(currentPath) : 'plaintext'),
+    [currentPath],
+  );
 
-  useEffect(() => {
-    const unregister = commandRegistry.register('editor.close', () => {
-      const path = useEditorStore.getState().currentPath;
-      close();
-      if (path) eventBus.emit('file:closed', { path });
-    });
-    return unregister;
-  }, [close]);
-
-  if (!currentPath) {
-    return (
-      <div className="h-full flex items-center justify-center text-sm text-neutral-500 bg-neutral-950">
-        Explorer에서 파일을 선택하세요
-      </div>
-    );
-  }
+  const { containerRef } = useMonacoEditor({
+    path: currentPath,
+    value: content,
+    language,
+    readOnly: true, // TODO: 다음 세션에서 false로 + onChange + dirty + Ctrl+S
+  });
 
   return (
     <div className="h-full flex flex-col bg-neutral-950">
       <header className="px-3 py-1.5 text-xs text-neutral-400 border-b border-neutral-800 bg-neutral-900 flex items-center justify-between">
         <span className="truncate">
-          {currentPath}
+          {currentPath ?? <span className="text-neutral-500">파일을 선택하세요</span>}
           {isLoading && <span className="ml-2 text-neutral-500 italic">loading…</span>}
         </span>
-        <button
-          onClick={() => commandRegistry.execute('editor.close')}
-          className="ml-2 px-1.5 py-0.5 text-[10px] bg-neutral-800 hover:bg-neutral-700 rounded"
-        >
-          close
-        </button>
+        {currentPath && (
+          <button
+            onClick={() => commandRegistry.execute('editor.close')}
+            className="ml-2 px-1.5 py-0.5 text-[10px] bg-neutral-800 hover:bg-neutral-700 rounded"
+          >
+            close
+          </button>
+        )}
       </header>
-      <div className="flex-1 overflow-auto p-3">
+
+      {/* Monaco 영역 — 자식 JSX를 두지 않음. ref만 넘김. */}
+      {/* error 메시지는 Monaco 위에 오버레이가 아니라, Monaco를 가리고 보여줌. */}
+      <div className="flex-1 relative">
         {error ? (
-          <pre className="text-sm text-red-400 whitespace-pre-wrap font-mono">
+          <pre className="absolute inset-0 p-3 text-sm text-red-400 whitespace-pre-wrap font-mono bg-neutral-950 overflow-auto">
             파일을 읽지 못했습니다.{'\n'}
             {error}
           </pre>
-        ) : (
-          <pre className="text-sm text-neutral-200 whitespace-pre font-mono">{content}</pre>
-        )}
+        ) : null}
+        <div ref={containerRef} className="absolute inset-0" />
       </div>
     </div>
   );
