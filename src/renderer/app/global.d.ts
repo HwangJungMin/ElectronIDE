@@ -8,6 +8,8 @@
 // → 트레이드오프: 약간의 중복을 감수하고 renderer-side에서 contract를 다시 선언.
 // 실무에선 codegen이나 별도 shared-types 패키지로 해결.
 
+import type { Result } from '@shared/types/result';
+
 export interface FileNode {
   path: string;
   name: string;
@@ -19,12 +21,12 @@ declare global {
   interface Window {
     api: {
       editor: {
-        readFile: (path: string) => Promise<string>;
-        writeFile: (path: string, content: string) => Promise<void>;
+        readFile: (path: string) => Promise<Result<string>>;
+        writeFile: (path: string, content: string) => Promise<Result<void>>;
       };
       workspace: {
-        openFolder: () => Promise<string | null>;
-        readTree: (rootPath: string) => Promise<FileNode | null>;
+        openFolder: () => Promise<Result<string>>;
+        readTree: (rootPath: string) => Promise<Result<FileNode>>;
       };
       terminal: {
         spawn: () => Promise<unknown>;

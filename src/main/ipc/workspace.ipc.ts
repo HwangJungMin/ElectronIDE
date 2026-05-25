@@ -1,28 +1,27 @@
 // IPC 핸들러 = renderer의 요청을 받는 진입점.
 //
-// ipcMain.handle(channel, fn):
-//   - renderer는 ipcRenderer.invoke(channel, ...args)로 호출
-//   - fn의 반환값(Promise OK)이 renderer로 직렬화돼서 전달
-//   - 예외는 IPC를 거쳐 renderer의 Promise reject로 전파
-//
-// 보안 원칙:
-//   - renderer는 신뢰할 수 없는 입력 — path를 받으면 검증 필요
-//     (실무에선 workspace root 밖 접근 차단, 심볼릭 링크 방지 등)
+// 학습 포인트 — Result 패턴 적용 후:
+//   - 모든 핸들러는 Result<T> 형태로 반환 (도메인 실패는 throw가 아니라 값).
+//   - throw가 발생하는 건 진짜 코드 버그 — IPC reject로 전파됨.
+//   - 사용자 취소(dialog 닫기)는 에러가 아니라 reason='cancelled'로 명시.
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { workspaceService } from '../services/workspace.service';
 import { IPC_CHANNELS } from '../constants/ipc.constants';
+import { ok, err, type Result } from '../types/result';
 
 export function registerWorkspaceIpc(): void {
-  ipcMain.handle(IPC_CHANNELS.WORKSPACE_OPEN_FOLDER, async (e) => {
-    // 다이얼로그를 호출한 창에 모달로 띄우면 UX가 자연스러움
+  ipcMain.handle(IPC_CHANNELS.WORKSPACE_OPEN_FOLDER, async (e): Promise<Result<string>> => {
     const win = BrowserWindow.fromWebContents(e.sender);
     const result = await dialog.showOpenDialog(win ?? new BrowserWindow({ show: false }), {
       properties: ['openDirectory'],
       title: '폴더 선택',
     });
-    if (result.canceled || result.filePaths.length === 0) return null;
-    return result.filePaths[0];
+    if (result.canceled || result.filePaths.length === 0) {
+      // 취소는 에러가 아님 — reason으로 명시해서 caller가 무시할지 알림 띄울지 결정.
+      return err('cancelled', 'user cancelled folder dialog');
+    }
+    return ok(result.filePaths[0]);
   });
 
   ipcMain.handle(IPC_CHANNELS.WORKSPACE_READ_TREE, async (_e, rootPath: string) => {

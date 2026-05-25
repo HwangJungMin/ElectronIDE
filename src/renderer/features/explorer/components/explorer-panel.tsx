@@ -2,13 +2,11 @@
 // workspace.openFolder 커맨드 등록은 useWorkspaceCommands 훅으로 위임.
 
 import { useExplorerStore } from '../store/explorer.store';
-import { useWorkspaceCommands } from '../hooks/use-workspace-commands';
 import { FileTreeNode } from './file-tree-node';
 import { commandRegistry } from '@shared/services/command-registry';
 
+// workspace 커맨드 등록은 CommandsHost에서. 이 컴포넌트는 살림 전담.
 export function ExplorerPanel() {
-  useWorkspaceCommands();
-
   const tree = useExplorerStore((s) => s.tree);
   const selectedPath = useExplorerStore((s) => s.selectedPath);
   const expandedCount = useExplorerStore((s) => s.expandedPaths.size);

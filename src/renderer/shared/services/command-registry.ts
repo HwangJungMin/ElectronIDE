@@ -9,7 +9,9 @@
 
 export interface CommandMap {
   'editor.open': { args: [path: string]; return: Promise<void> };
-  'editor.close': { args: []; return: void };
+  'editor.close': { args: [path?: string]; return: void }; // path 생략 시 활성 탭
+  'editor.closeAll': { args: []; return: void };
+  'editor.activate': { args: [path: string]; return: void };
   'workspace.openFolder': { args: []; return: Promise<void> };
 }
 
@@ -22,6 +24,15 @@ class CommandRegistry {
   private handlers = new Map<CommandName, (...args: unknown[]) => unknown>();
 
   register<K extends CommandName>(name: K, handler: CommandHandler<K>): () => void {
+    // 중복 등록 가드: 같은 커맨드를 두 군데서 등록하면 "마지막이 이김"이라
+    // order-dependent 버그가 생긴다. dev에선 즉시 잡히도록 경고.
+    // (anchor 훅 패턴이 깨졌다는 신호 — CommandsHost 외에서 use*Commands를 부르고 있는 것)
+    if (this.handlers.has(name)) {
+      console.warn(
+        `[command-registry] "${name}" already registered — overwriting. ` +
+          'anchor 훅이 두 곳에서 호출되고 있을 가능성. CommandsHost를 확인하세요.',
+      );
+    }
     this.handlers.set(name, handler as never);
     return () => {
       // 등록 시점의 handler와 같은 경우에만 제거 (재등록 후 cleanup이 새 핸들러를 지우는 사고 방지)

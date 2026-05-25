@@ -1,5 +1,4 @@
-// renderer에 노출되는 워크스페이스 API.
-// IPC 채널을 직접 만지지 않고 이 함수를 호출 → channel 오타로 인한 실패 방지.
+// renderer로 노출되는 workspace API. Result<T> 반환.
 
 import { invoke } from '../utils/ipc-wrapper';
 
@@ -10,7 +9,14 @@ export interface FileNode {
   children?: FileNode[];
 }
 
+interface Result<T> {
+  ok: boolean;
+  value?: T;
+  reason?: 'cancelled' | 'not-found' | 'permission' | 'invalid' | 'unknown';
+  error?: string;
+}
+
 export const workspaceApi = {
-  openFolder: () => invoke<string | null>('workspace:open-folder'),
-  readTree: (rootPath: string) => invoke<FileNode | null>('workspace:read-tree', rootPath),
+  openFolder: () => invoke<Result<string>>('workspace:open-folder'),
+  readTree: (rootPath: string) => invoke<Result<FileNode>>('workspace:read-tree', rootPath),
 };
